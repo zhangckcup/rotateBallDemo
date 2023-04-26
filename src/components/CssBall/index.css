@@ -1,0 +1,32 @@
+.app {
+  width: 400px;
+  height: 400px;
+  perspective: 800px;
+}
+
+.ball {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  transform-style: preserve-3d;
+  animation: startRotate 10s linear;
+  animation-iteration-count: infinite;
+}
+
+.ball-item {
+  width: 200px;
+  height: 200px;
+  border: 1px solid blue;
+  position: absolute;
+  top: 100px;
+  left: 100px;
+}
+
+@keyframes startRotate {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
