@@ -3,9 +3,9 @@ import { geoOrthographic } from "d3-geo";
 import { elementToSVG } from "dom-to-svg";
 
 // 图像放大倍数，用于消除间隙（暂时）
-const zoom = 3;
+const zoom = 1;
 
-export default function CanvasBall2() {
+export default function CanvasBall2({children}) {
   const elementRef = useRef(null);
   const imgRef = useRef(null);
   const canvasRef = useRef(null);
@@ -39,17 +39,24 @@ export default function CanvasBall2() {
         }
         // TODO: 有间隙? 暂时用加倍来处理，之后可以加一个补空隙的方法
         const [nx, ny] = projection([x / zoom, y / zoom + 80]);
-        const [xx, yy] = [Math.round(nx / 2 - 50), Math.round(ny / 2 + 80)];
+        const [xx, yy] = [Math.round(nx / 2 - 116), Math.round(ny / 2)];
 
         newImgData[(yy * width + xx) * 4] = rawImgData[(y * width + x) * 4];
         newImgData[(yy * width + xx) * 4 + 1] = rawImgData[(y * width + x) * 4 + 1];
         newImgData[(yy * width + xx) * 4 + 2] = rawImgData[(y * width + x) * 4 + 2];
         newImgData[(yy * width + xx) * 4 + 3] = rawImgData[(y * width + x) * 4 + 3];
+
+        /**
+         * 可以通过计算下一个点点坐标修正当前渲染点的范围。
+         */
+        // const [lx, ly] = projection([(x + 1) / zoom, (y + 1) / zoom + 80]);
+        // for () { for () // TODO }
       }
     }
     return new ImageData(newImgData, width, height);
   }, []);
 
+  // DOM 转 SVG 转 canvas
   useEffect(() => {
     // 将 HTML 转化为 SVG
     const svg = elementToSVG(elementRef.current).firstChild;
@@ -100,10 +107,22 @@ export default function CanvasBall2() {
         }}
         ref={elementRef}
       >
-        示例DOM
+        {children ? children : '示例DOM'}
       </div>
       <canvas style={{display: 'none'}} width={400 * zoom} height={200 * zoom} ref={imgRef} />
-      <canvas width={400} height={400} ref={canvasRef} />
+      <div
+        style={{
+          transform: 'scale(2)',
+          marginLeft: 250,
+          marginTop: 150,
+          height: 250,
+          width: 250,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle at 80px 80px, #5cabff00, #00000050)'
+        }}
+      >
+        <canvas width={250} height={250} ref={canvasRef} />
+      </div>
     </div>
   )
 }
