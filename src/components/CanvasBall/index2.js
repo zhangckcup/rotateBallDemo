@@ -1,17 +1,53 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { geoOrthographicRaw, geoProjection } from "d3-geo";
+import { geoOrthographic } from "d3-geo";
 import { elementToSVG } from "dom-to-svg";
-import './index.css';
 
-
+// 图像放大倍数，用于消除间隙（暂时）
+const zoom = 3;
 
 export default function CanvasBall2() {
   const elementRef = useRef(null);
   const imgRef = useRef(null);
   const canvasRef = useRef(null);
 
-  useCallback(() => {
+  // 投影方法（将平面投影为球体）
+  const projectionIn = useCallback((width, height,rawImgData, time) => {
+    // 长 * 宽 * rgba
+    const newImgData = new Uint8ClampedArray(width * height * 4);
+    // 计算旋转的进度
+    const rotateRatio = time / 10000;
+    // 使用 d3 计算投影函数
+    const projection = geoOrthographic().rotate([-rotateRatio * 360]);
+    // 计算需要在视窗内展示的范围
+    const xStart = Math.floor((1/4 - 1/16 + rotateRatio) * width) % width;
+    let xEnd = Math.ceil((3/4 - 1/16 + rotateRatio) * width) % width;
+    if (xEnd < xStart) {
+      xEnd += width;
+    }
 
+    // 对原始图像进行投影
+    for (let y = 0; y < height; y++) {
+      for (let x1 = xStart; x1 < xEnd; x1++) {
+        const x = x1 % width;
+        if (
+          !rawImgData[(y * width + x) * 4] &&
+          !rawImgData[(y * width + x) * 4 + 1] &&
+          !rawImgData[(y * width + x) * 4 + 2] &&
+          !rawImgData[(y * width + x) * 4 + 3]
+        ) {
+          continue;
+        }
+        // TODO: 有间隙? 暂时用加倍来处理，之后可以加一个补空隙的方法
+        const [nx, ny] = projection([x / zoom, y / zoom + 80]);
+        const [xx, yy] = [Math.round(nx / 2 - 50), Math.round(ny / 2 + 80)];
+
+        newImgData[(yy * width + xx) * 4] = rawImgData[(y * width + x) * 4];
+        newImgData[(yy * width + xx) * 4 + 1] = rawImgData[(y * width + x) * 4 + 1];
+        newImgData[(yy * width + xx) * 4 + 2] = rawImgData[(y * width + x) * 4 + 2];
+        newImgData[(yy * width + xx) * 4 + 3] = rawImgData[(y * width + x) * 4 + 3];
+      }
+    }
+    return new ImageData(newImgData, width, height);
   }, []);
 
   useEffect(() => {
@@ -25,34 +61,28 @@ export default function CanvasBall2() {
 
     // 图片转为canvas
     const imgCanvas = imgRef.current;
-    const imgCtx = imgCanvas.getContext("2d");
+    const imgCtx = imgCanvas.getContext("2d",{
+      willReadFrequently: true
+    });
     img.onload = function() {
       // 获取图片数据
       imgCtx.drawImage(this, 0, 0);
       const rawImageData = imgCtx.getImageData(0, 0, imgCanvas.width, imgCanvas.height).data;
 
-      const projection = geoProjection(geoOrthographicRaw.invert)
       // 绘制贴在球面上的文字
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d', {
         willReadFrequently: true
       });
-      const { width, height } = canvas;
-      const imgData2 = ctx.getImageData(0, 0, width, height);
-      const imgData = imgData2.data;
-      for (let x = 0; x < width; x++) {
-        for (let y = 0; y < height; y++) {
-          const [x1, y1] =  projection([x, y]);
-          const [x2, y2] = [Math.round(x1), Math.round(y1)];
-          imgData[(x + y * width) * 4] = rawImageData[(x2 + y2 * width) * 4];
-          imgData[(x + y * width) * 4 + 1] = rawImageData[(x2 + y2 * width) * 4 + 1];
-          imgData[(x + y * width) * 4 + 2] = rawImageData[(x2 + y2 * width) * 4 + 2];
-          imgData[(x + y * width) * 4 + 3] = rawImageData[(x2 + y2 * width) * 4 + 3];
-        }
+      const { width, height } = imgCanvas;
+
+      // 渲染动画
+      const step = (time) => {
+        const newImageData = projectionIn(width, height, rawImageData, time);
+        ctx.putImageData(newImageData, 0, 0);
+        requestAnimationFrame(step);
       }
-      // imgData2.data.set(imgData);
-      console.log(imgData, rawImageData)
-      ctx.putImageData(imgData2, width, height);
+      requestAnimationFrame(step);
     };
     img.src = `data:image/svg+xml,${svgStr}`;
   }, []);
@@ -60,12 +90,19 @@ export default function CanvasBall2() {
   return (
     <div>
       <div
+        style={{
+          zoom: 1 / zoom,
+          fontSize: `${72 * zoom}px`,
+          height: 200 * zoom,
+          width: 400 * zoom,
+          textAlign: "center",
+          lineHeight: `${200 * zoom}px`,
+        }}
         ref={elementRef}
-        className="text-element"
       >
-        示例文字
+        示例DOM
       </div>
-      <canvas width={400} height={200} ref={imgRef} />
+      <canvas style={{display: 'none'}} width={400 * zoom} height={200 * zoom} ref={imgRef} />
       <canvas width={400} height={400} ref={canvasRef} />
     </div>
   )
